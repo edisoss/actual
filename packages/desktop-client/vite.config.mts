@@ -379,6 +379,8 @@ export default defineConfig(async ({ mode, command }) => {
                 /^\/kcab\/.*$/,
                 /^\/plugin-data\/.*$/,
                 /^\/enablebanking\/.*$/,
+                // Fork: AI categorizer review page, served by a separate app behind Caddy
+                /^\/ai(\/|$)/,
               ],
             },
           }),

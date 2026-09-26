@@ -1,0 +1,93 @@
+name: Build Fork Docker Image
+
+# Builds the sync-server image (which bundles the web UI) for this fork and
+# publishes it to GitHub Container Registry. Only runs on forks, so it never
+# interferes with the upstream release workflows.
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: docker-fork-build
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/actual-server
+
+  # Creates the following tags:
+  # - actual-server:latest (default branch only)
+  # - actual-server:sha-<short sha> (immutable, used for deploys and rollback)
+  TAGS: |
+    type=raw,value=latest,enable={{is_default_branch}}
+    type=sha
+
+jobs:
+  build:
+    if: github.event.repository.fork
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: ${{ env.TAGS }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build outside of the image, same as the upstream nightly workflow.
+      # This is faster and avoids yarn memory issues inside Docker.
+      - name: Set up environment
+        uses: ./.github/actions/setup
+
+      - name: Build Web
+        run: yarn build:server
+
+      - name: Build image for testing
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          push: false
+          load: true
+          file: packages/sync-server/docker/ubuntu.Dockerfile
+          tags: actual-server-testing
+
+      - name: Test that the docker image boots
+        timeout-minutes: 1
+        run: |
+          docker run --detach --network=host --name actual-server actual-server-testing
+          until docker exec actual-server node scripts/health-check.js; do sleep 1; done
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker logs actual-server || true
+
+      # Reuses the cache from the test build; only pushes after the boot test passed.
+      - name: Build and push image
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          push: true
+          file: packages/sync-server/docker/ubuntu.Dockerfile
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

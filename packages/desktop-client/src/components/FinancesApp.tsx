@@ -23,6 +23,7 @@ import { useDispatch, useSelector } from '#redux';
 
 import { UserAccessPage } from './admin/UserAccess/UserAccessPage';
 import { UserDirectoryPage } from './admin/UserDirectory/UserDirectoryPage';
+import { AiReviewPage } from './ai-review/AiReviewPage';
 import { BankSyncStatus } from './BankSyncStatus';
 import { CommandBar } from './CommandBar';
 import { ContextMenu } from './ContextMenu';
@@ -367,6 +368,17 @@ export function FinancesApp() {
                       }
                     />
                     <Route path="/tags" element={<ManageTagsPage />} />
+                    <Route
+                      path="/ai-review"
+                      element={
+                        <ErrorBoundary
+                          FallbackComponent={FeatureErrorFallback}
+                          resetKeys={[location.pathname]}
+                        >
+                          <AiReviewPage />
+                        </ErrorBoundary>
+                      }
+                    />
                     <Route
                       path="/notifications"
                       element={<NotificationsPage />}

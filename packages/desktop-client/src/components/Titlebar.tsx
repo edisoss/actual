@@ -28,6 +28,7 @@ import { SharedArrayBufferWarning } from '#components/SharedArrayBufferWarning';
 import { useGlobalPref } from '#hooks/useGlobalPref';
 import { useIsTestEnv } from '#hooks/useIsTestEnv';
 import { useNavigate } from '#hooks/useNavigate';
+import { useQuery } from '#hooks/useQuery';
 import { useSheetValue } from '#hooks/useSheetValue';
 import { useSyncedPref } from '#hooks/useSyncedPref';
 import { useSyncStatus } from '#hooks/useSyncStatus';
@@ -35,6 +36,8 @@ import { useDispatch } from '#redux';
 import * as bindings from '#spreadsheet/bindings';
 
 import { AccountSyncCheck } from './accounts/AccountSyncCheck';
+import { aiReviewQuery, hasAiReviewTag } from './ai-review/aiReview';
+import type { AiReviewTransaction } from './ai-review/aiReview';
 import { AnimatedRefresh } from './AnimatedRefresh';
 import { MonthCountSelector } from './budget/MonthCountSelector';
 import { Link } from './common/Link';
@@ -61,6 +64,28 @@ function UncategorizedButton() {
       }}
     >
       <Trans count={count}>{{ count }} uncategorized transactions</Trans>
+    </Link>
+  );
+}
+
+// Fork: shows how many AI-categorized transactions are waiting for review.
+function AiReviewButton() {
+  const { data } = useQuery<AiReviewTransaction>(() => aiReviewQuery(), []);
+  const count = (data ?? []).filter(tx => hasAiReviewTag(tx.notes)).length;
+  if (count <= 0) {
+    return null;
+  }
+
+  return (
+    <Link
+      variant="button"
+      buttonVariant="bare"
+      to="/ai-review"
+      style={{
+        color: theme.pageTextPositive,
+      }}
+    >
+      <Trans count={count}>{{ count }} sorted by AI to review</Trans>
     </Link>
   );
 }
@@ -340,6 +365,7 @@ export function Titlebar({ style }: TitlebarProps) {
       </Routes>
       <View style={{ flex: 1 }} />
       <SpaceBetween gap={10}>
+        <AiReviewButton />
         <UncategorizedButton />
         {isDevelopmentEnvironment() && !isTestEnv && <ThemeSelector />}
         <PrivacyButton />
